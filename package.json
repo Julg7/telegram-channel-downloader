@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "batch-download": "node scripts/batch-download-channels.js"
   },
   "nodemonConfig": {
     "ignore": [

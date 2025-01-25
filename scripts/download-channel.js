@@ -35,6 +35,7 @@ class DownloadChannel {
   constructor() {
     this.outputFolder = null;
     this.downloadableFiles = null;
+    this.client = null;
 
     const exportPath = path.resolve(process.cwd(), "./export");
     if (!fs.existsSync(exportPath)) {
@@ -201,24 +202,25 @@ class DownloadChannel {
    * Main entry point: initializes auth, sets up output folder, and starts download
    */
   async handle(options = {}) {
-    let client;
     await wait(1);
     try {
-      client = await initAuth();
+      this.client = options.client || await initAuth();
       const { channelId, messageOffsetId } = await this.configureDownload(
         options,
-        client
+        this.client
       );
 
-      const dialogName = await getDialogName(client, channelId);
+      const dialogName = await getDialogName(this.client, channelId);
       logger.info(`Downloading media from channel ${dialogName}`);
-      await this.downloadChannel(client, channelId, messageOffsetId);
+      await this.downloadChannel(this.client, channelId, messageOffsetId);
     } catch (err) {
       logger.error("An error occurred:");
       console.error(err);
     } finally {
-      if (client) await client.disconnect();
-      process.exit(0);
+      if (this.client && !options.client) {
+        await this.client.disconnect();
+        process.exit(0);
+      }
     }
   }
 }

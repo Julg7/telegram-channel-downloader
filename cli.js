@@ -7,6 +7,7 @@ const path = require("path");
 const { glob } = require("glob");
 const logger = require("./utils/logger");
 const commandFile = path.join(__dirname, "./scripts");
+const program = require("commander");
 
 const commandFiles = glob.sync([`${commandFile}/**/*.js`]);
 
@@ -136,3 +137,11 @@ async function runCommand(commandPath, options) {
     logAvailableCommands();
   }
 })();
+
+program
+    .command('batch-download <file>')
+    .description('Download multiple channels listed in a text file')
+    .action(async (file) => {
+        const { batchDownloadChannels } = require('./scripts/batch-download-channels');
+        await batchDownloadChannels(file);
+    });
