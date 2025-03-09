@@ -60,32 +60,7 @@ const getMediaType = (message) => {
 // Check if a file already exists
 const checkFileExist = (message, outputFolder) => {
   if (!message || !message.media) return false;
-
-  let fileName = `${message.id}_file`;
-  const { media } = message;
-
-  if (media.document) {
-    const docAttributes = media.document.attributes;
-    if (docAttributes) {
-      const fileNameObj = docAttributes.find(
-        (e) => e.className === "DocumentAttributeFilename"
-      );
-      if (fileNameObj) {
-        fileName = fileNameObj.fileName;
-      } else {
-        const ext = mimeDB[media.document.mimeType]?.extensions[0];
-        if (ext) fileName += `.${ext}`;
-      }
-    }
-  }
-
-  if (media.video) fileName += ".mp4";
-  if (media.audio) fileName += ".mp3";
-  if (media.photo) fileName += ".jpg";
-
-  const folderType = filterString(getMediaType(message));
-  const filePath = path.join(outputFolder, folderType, fileName);
-
+  const filePath = getMediaPath(message, outputFolder);
   return fs.existsSync(filePath);
 };
 
@@ -94,14 +69,37 @@ const getMediaPath = (message, outputFolder) => {
   const mediaType = getMediaType(message);
   let fileName = '';
   let extension = '';
+  let subfolder = '';
+
+  // Determine subfolder based on media type
+  switch (mediaType) {
+    case 'video':
+      subfolder = 'video';
+      break;
+    case 'photo':
+      subfolder = 'image';
+      break;
+    case 'webpage':
+      subfolder = 'webpage';
+      break;
+    default:
+      subfolder = mediaType; // Use the media type as subfolder name
+  }
 
   if (message.media?.document?.attributes) {
     // Try to get original filename first
     const fileAttr = message.media.document.attributes.find(attr => attr.fileName);
     if (fileAttr) {
-      // Remove any existing extension from the filename since we'll add it later
-      fileName = path.parse(fileAttr.fileName).name;
-      extension = path.parse(fileAttr.fileName).ext.toLowerCase();
+      const parsedPath = path.parse(fileAttr.fileName);
+      fileName = parsedPath.name;
+      // Only use the extension from the filename if it matches the media type
+      if (parsedPath.ext.toLowerCase() === '.mp4' && mediaType === 'video') {
+        extension = parsedPath.ext.toLowerCase();
+      } else if (parsedPath.ext.toLowerCase() === '.mp3' && mediaType === 'audio') {
+        extension = parsedPath.ext.toLowerCase();
+      } else if (['.jpg', '.jpeg', '.png', '.gif'].includes(parsedPath.ext.toLowerCase()) && mediaType === 'photo') {
+        extension = parsedPath.ext.toLowerCase();
+      }
     }
   }
 
@@ -110,7 +108,7 @@ const getMediaPath = (message, outputFolder) => {
     fileName = message.id.toString();
   }
 
-  // If no extension found, determine it from media type
+  // If no extension found or it doesn't match media type, determine it from media type
   if (!extension) {
     switch (mediaType) {
       case 'video':
@@ -125,6 +123,9 @@ const getMediaPath = (message, outputFolder) => {
       case 'audio':
         extension = '.mp3';
         break;
+      case 'webpage':
+        extension = '.html';
+        break;
       default:
         extension = '';
     }
@@ -135,7 +136,16 @@ const getMediaPath = (message, outputFolder) => {
     extension = '.' + extension;
   }
 
-  return path.join(outputFolder, `${fileName}${extension}`);
+  // Create the full path with subfolder
+  const fullPath = path.join(outputFolder, subfolder, `${fileName}${extension}`);
+  
+  // Ensure the subfolder exists
+  const subfolderPath = path.join(outputFolder, subfolder);
+  if (!fs.existsSync(subfolderPath)) {
+    fs.mkdirSync(subfolderPath, { recursive: true });
+  }
+
+  return fullPath;
 };
 
 // Get the type of dialog
