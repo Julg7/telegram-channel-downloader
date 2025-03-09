@@ -3,10 +3,7 @@ const path = require("path");
 const { logMessage } = require("./helper");
 
 const CONFIG_FILE = path.join(__dirname, "../config.json");
-const LAST_SELECTION_FILE = path.join(
-  __dirname,
-  "../export/last_selection.json"
-);
+const LAST_SELECTION_FILE = path.join("Q:/SITES/pierre2_Chaines/export", "last_selection.json");
 
 /**
  * Reads the content of a file synchronously.
@@ -82,11 +79,13 @@ const getCredentials = () => {
  */
 const getLastSelection = () => {
   try {
-    const data = readFileSync(LAST_SELECTION_FILE, false);
-    return JSON.parse(data);
-  } catch (_) {
-    return {};
+    if (fs.existsSync(LAST_SELECTION_FILE)) {
+      return JSON.parse(fs.readFileSync(LAST_SELECTION_FILE));
+    }
+  } catch (err) {
+    console.error("Error reading last selection:", err);
   }
+  return {};
 };
 
 /**
@@ -100,10 +99,21 @@ const getLastSelection = () => {
  */
 const updateLastSelection = (object) => {
   try {
-    const last = { ...getLastSelection(), ...object };
-    writeFileSync(LAST_SELECTION_FILE, last);
+    let currentData = {};
+    if (fs.existsSync(LAST_SELECTION_FILE)) {
+      currentData = JSON.parse(fs.readFileSync(LAST_SELECTION_FILE));
+    }
+    const newData = { ...currentData, ...object };
+    
+    // Ensure directory exists
+    const dir = path.dirname(LAST_SELECTION_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    fs.writeFileSync(LAST_SELECTION_FILE, JSON.stringify(newData, null, 2));
   } catch (err) {
-    logMessage.error("Failed to update last selection", err);
+    console.error("Error updating last selection:", err);
   }
 };
 

@@ -37,9 +37,9 @@ class DownloadChannel {
     this.downloadableFiles = null;
     this.client = null;
 
-    const exportPath = path.resolve(process.cwd(), "./export");
+    const exportPath = path.resolve("Q:/SITES/pierre2_Chaines/export");
     if (!fs.existsSync(exportPath)) {
-      fs.mkdirSync(exportPath);
+      fs.mkdirSync(exportPath, { recursive: true });
     }
   }
 
@@ -63,6 +63,13 @@ class DownloadChannel {
     if (!this.hasMedia(message)) return false;
     const mediaType = getMediaType(message);
     const mediaPath = getMediaPath(message, this.outputFolder);
+    
+    // Create subdirectories if they don't exist
+    const mediaDir = path.dirname(mediaPath);
+    if (!fs.existsSync(mediaDir)) {
+      fs.mkdirSync(mediaDir, { recursive: true });
+    }
+    
     const fileExists = checkFileExist(message, this.outputFolder);
     const extension = path.extname(mediaPath).toLowerCase().replace(".", "");
     const allowed =
@@ -110,10 +117,15 @@ class DownloadChannel {
   async downloadChannel(client, channelId, offsetMsgId = 0) {
     try {
       this.outputFolder = path.join(
-        process.cwd(),
-        "export",
+        "Q:/SITES/pierre2_Chaines/export",
         channelId.toString()
       );
+
+      // Create channel directory if it doesn't exist
+      if (!fs.existsSync(this.outputFolder)) {
+        fs.mkdirSync(this.outputFolder, { recursive: true });
+      }
+
       const messages = await getMessages(
         client,
         channelId,

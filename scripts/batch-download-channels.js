@@ -5,28 +5,69 @@ const { initAuth } = require("../modules/auth");
 const DownloadChannel = require("./download-channel");
 const logger = require("../utils/logger");
 
+function extractChannelIdentifier(line) {
+  // Remove any whitespace
+  line = line.trim();
+  
+  // Handle t.me links
+  if (line.includes('t.me/')) {
+    return line.split('t.me/')[1].trim();
+  }
+  
+  // Handle direct channel names or IDs
+  return line;
+}
+
+async function resolveChannelId(client, identifier) {
+  try {
+    // If it's already a numeric ID, return it
+    if (/^-?\d+$/.test(identifier)) {
+      return parseInt(identifier, 10);
+    }
+
+    // Try to resolve the username to get the channel ID
+    const result = await client.getEntity(identifier);
+    return result.id;
+  } catch (err) {
+    logger.error(`Could not resolve channel: ${identifier}`);
+    return null;
+  }
+}
+
 async function batchDownloadChannels(channelsFile) {
   try {
-    // Read channels from file
-    const channels = fs
-      .readFileSync(channelsFile, "utf8")
-      .split("\n")
-      .map(line => line.trim())
-      .filter(line => line && !line.startsWith("#"));
-
-    logger.info(`Found ${channels.length} channels to download`);
-
-    // Initialize auth once for all downloads
+    // Initialize auth first to resolve channel IDs
     const client = await initAuth();
 
     try {
-      // Set default download options to download all files
+      // Read channels from file
+      const channelIdentifiers = fs
+        .readFileSync(channelsFile, "utf8")
+        .split("\n")
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith("#"))
+        .map(extractChannelIdentifier);
+
+      logger.info(`Found ${channelIdentifiers.length} channels to process`);
+
+      // Resolve all channel IDs
+      const channelIds = [];
+      for (const identifier of channelIdentifiers) {
+        const channelId = await resolveChannelId(client, identifier);
+        if (channelId) {
+          channelIds.push(channelId);
+        }
+      }
+
+      logger.info(`Successfully resolved ${channelIds.length} channel IDs`);
+
       const downloadableFiles = {
-        all: true  // This will download all file types
+        all: true
       };
 
       // Process each channel
-      for (const channelId of channels) {
+      for (const channelId of channelIds) {
+        logger.info(`Starting download for channel ID: ${channelId}`);
         const downloader = new DownloadChannel();
         await downloader.handle({
           channelId,
@@ -35,7 +76,6 @@ async function batchDownloadChannels(channelsFile) {
         });
       }
     } finally {
-      // Disconnect client after all downloads are complete
       if (client) {
         await client.disconnect();
       }

@@ -1,4 +1,5 @@
 config.json
+channels.txt
 export/
 .DS_Store
 node_modules/

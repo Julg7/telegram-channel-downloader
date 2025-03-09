@@ -91,46 +91,51 @@ const checkFileExist = (message, outputFolder) => {
 
 // Get the path to save the media file
 const getMediaPath = (message, outputFolder) => {
-  if (!message || !message.media) return "unknown";
+  const mediaType = getMediaType(message);
+  let fileName = '';
+  let extension = '';
 
-  let fileName = `${message.id}_file`;
-  const { media } = message;
-
-  if (media.document) {
-    const docAttributes = media.document.attributes;
-    if (docAttributes) {
-      const fileNameObj = docAttributes.find(
-        (e) => e.className === "DocumentAttributeFilename"
-      );
-      if (fileNameObj) {
-        fileName = fileNameObj.fileName;
-      } else {
-        const ext = mimeDB[media.document.mimeType]?.extensions[0];
-        if (ext) fileName += `.${ext}`;
-      }
+  if (message.media?.document?.attributes) {
+    // Try to get original filename first
+    const fileAttr = message.media.document.attributes.find(attr => attr.fileName);
+    if (fileAttr) {
+      // Remove any existing extension from the filename since we'll add it later
+      fileName = path.parse(fileAttr.fileName).name;
+      extension = path.parse(fileAttr.fileName).ext.toLowerCase();
     }
   }
 
-  if (media.video) fileName += ".mp4";
-  if (media.audio) fileName += ".mp3";
-  if (media.photo) fileName += ".jpg";
-
-  const folderType = filterString(getMediaType(message));
-  const filePath = path.join(outputFolder, folderType, fileName);
-
-  if (fs.existsSync(filePath)) {
-    logMessage.info(`File already exists: ${filePath}, Changing name`);
-    const ext = path.extname(filePath);
-    const baseName = path.basename(filePath, ext);
-    fileName = `${baseName}_${message.id}${ext}`;
+  // If no filename found, use message ID
+  if (!fileName) {
+    fileName = message.id.toString();
   }
 
-  const finalPath = path.join(outputFolder, folderType, fileName);
-  if (!fs.existsSync(path.dirname(finalPath))) {
-    fs.mkdirSync(path.dirname(finalPath), { recursive: true });
+  // If no extension found, determine it from media type
+  if (!extension) {
+    switch (mediaType) {
+      case 'video':
+        extension = '.mp4';
+        break;
+      case 'photo':
+        extension = '.jpg';
+        break;
+      case 'document':
+        extension = '.doc';
+        break;
+      case 'audio':
+        extension = '.mp3';
+        break;
+      default:
+        extension = '';
+    }
   }
 
-  return finalPath;
+  // Ensure the extension starts with a dot
+  if (extension && !extension.startsWith('.')) {
+    extension = '.' + extension;
+  }
+
+  return path.join(outputFolder, `${fileName}${extension}`);
 };
 
 // Get the type of dialog
@@ -203,6 +208,25 @@ const appendToJSONArrayFile = (filePath, dataToAppend) => {
   }
 };
 
+const downloadMessageMedia = async (client, message, outputPath) => {
+  try {
+    // Ensure the directory exists before downloading
+    const dir = path.dirname(outputPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    await client.downloadMedia(message, {
+      outputFile: outputPath,
+    });
+    return true;
+  } catch (err) {
+    logger.error(`Failed to download media for message ${message.id}`);
+    console.error(err);
+    return false;
+  }
+};
+
 module.exports = {
   getMediaType,
   checkFileExist,
@@ -214,4 +238,5 @@ module.exports = {
   appendToJSONArrayFile,
   circularStringify,
   MEDIA_TYPES,
+  downloadMessageMedia,
 };
