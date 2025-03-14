@@ -40,18 +40,18 @@ const downloadMessageMedia = async (client, message, mediaPath) => {
       if (message.media.webpage) {
         const url = message.media.webpage.url;
         if (url) {
-          const urlPath = path.join(mediaPath, `../${message.id}_url.txt`);
+          const urlPath = path.join(mediaPath, `../${message.id}.txt`);
           fs.writeFileSync(urlPath, url);
         }
 
         mediaPath = path.join(
           mediaPath,
-          `../${message?.media?.webpage?.id}_image.jpeg`
+          `../${message?.media?.webpage?.id}.jpeg`
         );
       }
 
       if (message.media.poll) {
-        const pollPath = path.join(mediaPath, `../${message.id}_poll.json`);
+        const pollPath = path.join(mediaPath, `../${message.id}.json`);
         fs.writeFileSync(
           pollPath,
           circularStringify(message.media.poll, null, 2)

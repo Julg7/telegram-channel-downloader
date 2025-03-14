@@ -76,7 +76,7 @@ const getMediaPath = (message, outputFolder) => {
     case 'video':
       subfolder = 'video';
       break;
-    case 'photo':
+    case 'image':
       subfolder = 'image';
       break;
     case 'webpage':
@@ -97,7 +97,7 @@ const getMediaPath = (message, outputFolder) => {
         extension = parsedPath.ext.toLowerCase();
       } else if (parsedPath.ext.toLowerCase() === '.mp3' && mediaType === 'audio') {
         extension = parsedPath.ext.toLowerCase();
-      } else if (['.jpg', '.jpeg', '.png', '.gif'].includes(parsedPath.ext.toLowerCase()) && mediaType === 'photo') {
+      } else if (['.jpg', '.jpeg', '.png', '.gif'].includes(parsedPath.ext.toLowerCase()) && mediaType === 'image') {
         extension = parsedPath.ext.toLowerCase();
       }
     }
@@ -114,7 +114,7 @@ const getMediaPath = (message, outputFolder) => {
       case 'video':
         extension = '.mp4';
         break;
-      case 'photo':
+      case 'image':
         extension = '.jpg';
         break;
       case 'document':

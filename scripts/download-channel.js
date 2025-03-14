@@ -36,6 +36,12 @@ class DownloadChannel {
     this.outputFolder = null;
     this.downloadableFiles = null;
     this.client = null;
+    this.stats = {
+      totalFiles: 0,
+      skippedFiles: 0,
+      downloadedFiles: 0,
+      updatedFiles: 0
+    };
 
     const exportPath = path.resolve("Q:/SITES/pierre2_Chaines/export");
     if (!fs.existsSync(exportPath)) {
@@ -70,14 +76,47 @@ class DownloadChannel {
       fs.mkdirSync(mediaDir, { recursive: true });
     }
     
+    this.stats.totalFiles++;
+    
+    // Check if file exists and get its stats
     const fileExists = checkFileExist(message, this.outputFolder);
+    let shouldDownload = false;
+
+    if (fileExists) {
+      // Get file stats
+      const stats = fs.statSync(mediaPath);
+      
+      // Check if file is empty (incomplete download)
+      if (stats.size === 0) {
+        shouldDownload = true;
+        this.stats.updatedFiles++;
+        logger.info(`File ${path.basename(mediaPath)} exists but is empty - will redownload`);
+      }
+      // Check if message is newer than file
+      else if (message.date * 1000 > stats.mtimeMs) {
+        shouldDownload = true;
+        this.stats.updatedFiles++;
+        logger.info(`File ${path.basename(mediaPath)} has updates - will redownload`);
+      } else {
+        this.stats.skippedFiles++;
+        logger.info(`Skipping ${path.basename(mediaPath)} - already exists and up to date`);
+      }
+    } else {
+      shouldDownload = true;
+    }
+
     const extension = path.extname(mediaPath).toLowerCase().replace(".", "");
     const allowed =
       this.downloadableFiles?.[mediaType] ||
       this.downloadableFiles?.[extension] ||
       this.downloadableFiles?.all;
 
-    return allowed && !fileExists;
+    if (shouldDownload && allowed) {
+      this.stats.downloadedFiles++;
+      return true;
+    }
+    
+    return false;
   }
 
   /**
@@ -133,7 +172,12 @@ class DownloadChannel {
         offsetMsgId
       );
       if (!messages.length) {
-        logger.info("No more messages to download");
+        // Print final statistics
+        logger.info("Download completed!");
+        logger.info(`Total files processed: ${this.stats.totalFiles}`);
+        logger.info(`Files downloaded: ${this.stats.downloadedFiles}`);
+        logger.info(`Files updated: ${this.stats.updatedFiles}`);
+        logger.info(`Files skipped (up to date): ${this.stats.skippedFiles}`);
         return;
       }
       const ids = messages.map((m) => m.id);
