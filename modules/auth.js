@@ -2,6 +2,7 @@ const { TelegramClient } = require("telegram");
 const { updateCredentials, getCredentials } = require("../utils/file-helper");
 const { StringSession } = require("telegram/sessions");
 const { logMessage } = require("../utils/helper");
+const config = require("../config");
 
 const {
   textInput,
@@ -25,7 +26,12 @@ const stringSession = new StringSession(sessionId || "");
  */
 const initAuth = async (otpPreference = OTP_METHOD.APP) => {
   const client = new TelegramClient(stringSession, apiId, apiHash, {
-    connectionRetries: 5,
+    connectionRetries: config.connectionRetries,
+    timeout: config.connectionTimeout,
+    retryDelay: config.retryDelay,
+    maxAttempts: config.maxAttempts,
+    useWSS: true, // Use WebSocket Secure
+    requestRetries: 5
   });
 
   try {
@@ -43,11 +49,19 @@ const initAuth = async (otpPreference = OTP_METHOD.APP) => {
       password: async () => await textInput("Enter your password"),
       phoneCode: async (isCodeViaApp) => {
         logMessage.info(`OTP sent over ${isCodeViaApp ? "APP" : "SMS"}`);
-
         return await otpInput();
       },
       forceSMS,
-      onError: (err) => logMessage.error(err),
+      onError: (err) => {
+        logMessage.error(err);
+        // Implement exponential backoff for retries
+        if (err.message === "TIMEOUT") {
+          return new Promise((resolve) => {
+            setTimeout(resolve, config.retryDelay);
+          });
+        }
+        throw err;
+      },
     });
 
     logMessage.success("You should now be connected.");
@@ -63,7 +77,6 @@ const initAuth = async (otpPreference = OTP_METHOD.APP) => {
     return client;
   } catch (err) {
     logMessage.error(err);
-
     throw err;
   }
 };
