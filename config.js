@@ -1,13 +1,13 @@
 module.exports = {
     // Connection settings
-    connectionRetries: 5,
-    connectionTimeout: 30000, // 30 seconds
+    connectionRetries: 10,
+    connectionTimeout: 60000, // 60 seconds
     retryDelay: 5000, // 5 seconds between retries
-    maxAttempts: 3, // Maximum number of retry attempts
+    maxAttempts: 5, // Maximum number of retry attempts
     
     // Update loop settings
-    pingInterval: 60000, // 60 seconds
-    pingTimeout: 10000, // 10 seconds
+    pingInterval: 120000, // 120 seconds
+    pingTimeout: 30000, // 30 seconds
     reconnectDelay: 3000, // 3 seconds before reconnecting
     
     // Download settings

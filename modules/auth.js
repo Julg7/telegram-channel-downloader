@@ -31,7 +31,12 @@ const initAuth = async (otpPreference = OTP_METHOD.APP) => {
     retryDelay: config.retryDelay,
     maxAttempts: config.maxAttempts,
     useWSS: true, // Use WebSocket Secure
-    requestRetries: 5
+    requestRetries: 5,
+    pingInterval: config.pingInterval,
+    pingTimeout: config.pingTimeout,
+    reconnectDelay: config.reconnectDelay,
+    autoReconnect: true,
+    floodSleepThreshold: 60
   });
 
   try {
@@ -53,13 +58,25 @@ const initAuth = async (otpPreference = OTP_METHOD.APP) => {
       },
       forceSMS,
       onError: (err) => {
-        logMessage.error(err);
-        // Implement exponential backoff for retries
+        logMessage.error(`Connection error: ${err.message}`);
+        
+        // Enhanced error handling for timeouts
         if (err.message === "TIMEOUT") {
+          logMessage.info("Connection timed out, retrying with backoff...");
           return new Promise((resolve) => {
-            setTimeout(resolve, config.retryDelay);
+            const backoffDelay = Math.min(config.retryDelay * 2, 30000); // Max 30 seconds
+            setTimeout(resolve, backoffDelay);
           });
         }
+        
+        // Handle other connection errors
+        if (err.message.includes("CONNECTION") || err.message.includes("NETWORK")) {
+          logMessage.info("Network issue detected, retrying connection...");
+          return new Promise((resolve) => {
+            setTimeout(resolve, config.reconnectDelay);
+          });
+        }
+        
         throw err;
       },
     });
@@ -76,7 +93,7 @@ const initAuth = async (otpPreference = OTP_METHOD.APP) => {
   
     return client;
   } catch (err) {
-    logMessage.error(err);
+    logMessage.error(`Authentication error: ${err.message}`);
     throw err;
   }
 };

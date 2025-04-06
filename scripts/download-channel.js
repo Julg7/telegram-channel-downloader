@@ -152,8 +152,9 @@ class DownloadChannel {
    * @param {Object} client The Telegram client instance
    * @param {Number} channelId The channel ID
    * @param {Number} offsetMsgId The message offset
+   * @param {Number} retryCount The current retry count
    */
-  async downloadChannel(client, channelId, offsetMsgId = 0) {
+  async downloadChannel(client, channelId, offsetMsgId = 0, retryCount = 0) {
     try {
       this.outputFolder = path.join(
         "Q:/SITES/pierre2_Chaines/export",
@@ -212,14 +213,43 @@ class DownloadChannel {
       });
 
       await wait(1);
+      
+      // Reset retry count on successful operation
       await this.downloadChannel(
         client,
         channelId,
-        messages[messages.length - 1].id
+        messages[messages.length - 1].id,
+        0 // Reset retry count
       );
     } catch (err) {
-      logger.error("An error occurred:");
+      logger.error("An error occurred during download:");
       console.error(err);
+      
+      // Handle timeout errors with exponential backoff
+      if (err.message === "TIMEOUT" || err.message.includes("NETWORK") || err.message.includes("CONNECTION")) {
+        const maxRetries = 5;
+        if (retryCount < maxRetries) {
+          const backoffTime = Math.min(3000 * Math.pow(2, retryCount), 30000); // Exponential backoff capped at 30 seconds
+          logger.info(`Connection error, retrying in ${backoffTime/1000} seconds (attempt ${retryCount + 1}/${maxRetries})...`);
+          await wait(backoffTime / 1000);
+          
+          // Attempt to reconnect the client if needed
+          if (!client.connected) {
+            logger.info("Client disconnected. Attempting to reconnect...");
+            try {
+              await client.connect();
+              logger.info("Reconnected successfully");
+            } catch (reconnectErr) {
+              logger.error("Failed to reconnect:", reconnectErr.message);
+            }
+          }
+          
+          // Retry the download with the same offset
+          await this.downloadChannel(client, channelId, offsetMsgId, retryCount + 1);
+        } else {
+          logger.error(`Maximum retry attempts (${maxRetries}) reached. Please try again later.`);
+        }
+      }
     }
   }
 
@@ -261,6 +291,19 @@ class DownloadChannel {
     await wait(1);
     try {
       this.client = options.client || await initAuth();
+      
+      // Test connection before starting downloads
+      try {
+        if (!this.client.connected) {
+          logger.info("Connecting to Telegram servers...");
+          await this.client.connect();
+        }
+        logger.info("Connection to Telegram established");
+      } catch (connErr) {
+        logger.error("Failed to establish connection:", connErr.message);
+        throw connErr;
+      }
+      
       const { channelId, messageOffsetId } = await this.configureDownload(
         options,
         this.client
@@ -270,11 +313,22 @@ class DownloadChannel {
       logger.info(`Downloading media from channel ${dialogName}`);
       await this.downloadChannel(this.client, channelId, messageOffsetId);
     } catch (err) {
-      logger.error("An error occurred:");
+      logger.error("An error occurred in main process:");
       console.error(err);
+      
+      // Add specific handling for timeout errors
+      if (err.message === "TIMEOUT" || err.message.includes("CONNECTION")) {
+        logger.info("Connection issue detected. Try running the program again with higher timeout values in config.js");
+      }
     } finally {
       if (this.client && !options.client) {
-        await this.client.disconnect();
+        try {
+          logger.info("Disconnecting client...");
+          await this.client.disconnect();
+          logger.info("Client disconnected successfully");
+        } catch (disconnectErr) {
+          logger.error("Error disconnecting client:", disconnectErr.message);
+        }
         process.exit(0);
       }
     }
